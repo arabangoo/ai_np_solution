@@ -12,6 +12,9 @@
 - [트랜스포머: 언어를 NP에서 해방시킨 아키텍처](#트랜스포머-언어를-np에서-해방시킨-아키텍처)
 - [AI의 NP 우회 전략 전체 지형](#ai의-np-우회-전략-전체-지형)
 - [벽이 남아 있는 곳: 암호학](#벽이-남아-있는-곳-암호학)
+- [Agentic RAG: 수동 검색에서 자율 탐색으로](#agentic-rag-수동-검색에서-자율-탐색으로)
+- [멀티 에이전트 오케스트레이션: 분할 정복의 심화](#멀티-에이전트-오케스트레이션-분할-정복의-심화)
+- [하네스 엔지니어링: 자율성의 제어 계층](#하네스-엔지니어링-자율성의-제어-계층)
 - [결론](#결론)
 - [핵심 논문 및 참고 자료](#핵심-논문-및-참고-자료)
 
@@ -415,6 +418,320 @@ NP-hard 상황:
 
 ---
 
+## Agentic RAG: 수동 검색에서 자율 탐색으로
+
+> **Agentic Retrieval-Augmented Generation: A Survey on Agentic RAG** (Singh et al., 2025)
+> arXiv: https://arxiv.org/abs/2501.09136
+
+> **A-RAG: Scaling Agentic Retrieval-Augmented Generation via Hierarchical Retrieval Interfaces** (2026)
+> arXiv: https://arxiv.org/abs/2602.03442
+
+**전략 C + A: 학습된 직관 + 병렬 근사의 동적 결합**
+
+```
+NP-like 상황:
+  "방대한 문서 공간에서 정확한 답을 구성하라"
+  → 어떤 문서를 검색할지, 몇 번 검색할지, 결과가 충분한지
+    모두 결정해야 할 조합 탐색 문제
+  → 정적 파이프라인(query → retrieve → generate)은
+    첫 검색 실패 시 복구 불가
+
+기존 RAG의 한계:
+  Input → [Retriever] → [Generator] → Output
+  
+  ① 1회 검색: 검색 실패 시 오답 생성
+  ② 정적 탐색 깊이: 참조 체인(A→B→C) 추적 불가
+  ③ 결과 검증 없음: 검색 결과의 관련성 판단 없이 LLM에 전달
+  ④ 질의 고정: 자연어 질의를 도메인 언어로 변환하지 않음
+```
+
+**Agentic RAG 아키텍처:**
+
+```
+Input Query
+    ↓
+[Query Analyzer Agent]
+  - 구어체 → 도메인 키워드 변환
+  - 질의 의도 분류 (단순/비교/복잡)
+    ↓
+[Retrieval Agent]
+  - 초기 벡터 검색 수행
+  - 결과 품질 평가 → 재검색 여부 결정
+  - 그래프 탐색: 참조 체인 자율 확장 (멀티홉)
+    ↓
+[Validation Agent]
+  - 검색 결과 충분성 판단
+  - 의무 표시 항목 (면책·예외 조항 등) 코드 레벨 강제
+    ↓
+[Generation Agent]
+  - 컨텍스트 기반 답변 생성
+  - 신뢰도 낮은 경우 재검색 루프 진입
+    ↓
+Output
+```
+
+**A-RAG의 계층적 검색 인터페이스:**
+
+```
+기존 RAG:  단일 검색 도구 (벡터 검색만)
+A-RAG:     3개 계층 도구를 에이전트가 선택적 활용
+
+  Tool 1: keyword_search(query)   → 정확 키워드 매칭
+  Tool 2: semantic_search(query)  → 벡터 유사도 검색
+  Tool 3: chunk_read(chunk_id)    → 특정 청크 직접 조회
+
+  에이전트 의사결정:
+    "제21조 3항"       → keyword_search  (정확 조항 검색)
+    "보험금 지급 조건" → semantic_search  (의미 유사도)
+    "앞 청크 내용"     → chunk_read       (참조 탐색)
+```
+
+**NP 우회 원리**: 검색 자체를 에이전트가 반복적으로 수행하게 함으로써, 정적 1-pass 검색의 탐색 공간 한계를 **동적 다중 탐색으로 분산**한다. 단일 검색 실패 → 재탐색 루프 → 충분한 컨텍스트 확보. 지수적 문서 공간을 단계적 탐색 결정 트리로 대체한다.
+
+---
+
+## 멀티 에이전트 오케스트레이션: 분할 정복의 심화
+
+> **MA-RAG: Multi-Agent Retrieval-Augmented Generation via Collaborative Chain-of-Thought Reasoning** (2025)
+> arXiv: https://arxiv.org/abs/2505.20096
+
+> **AI Agent Systems: Architectures, Applications, and Evaluation** (2026)
+> arXiv: https://arxiv.org/abs/2601.01743
+
+**전략 A + C: 분산 병렬 처리 + 전문화된 직관의 협력**
+
+```
+NP-hard 상황:
+  단일 에이전트의 한계:
+  ① 단일 LLM은 컨텍스트 윈도우 제약 (선형 공간 한계)
+  ② 전문성과 범용성의 트레이드오프
+  ③ 다단계 추론 시 초기 오류가 최종 결과까지 전파
+  ④ 병렬 탐색 불가 → 순차 처리 병목
+```
+
+**MA-RAG의 역할 분리 구조:**
+
+```
+[Planner Agent]
+  역할: 복잡 질의를 하위 목표로 분해
+  출력: 단계별 실행 계획 (DAG)
+
+[Step Definer Agent]
+  역할: 각 단계에 필요한 도구/데이터 정의
+  출력: 실행 가능한 세부 작업 명세
+
+[Extractor Agent]
+  역할: 각 단계에서 문서로부터 정보 추출
+  출력: 단계별 근거 청크 집합
+
+[QA Agent]
+  역할: 추출된 정보를 종합하여 최종 답변 생성
+  출력: 단계별 Chain-of-Thought + 최종 응답
+```
+
+**성능 (MA-RAG vs 단일 에이전트):**
+
+```
+벤치마크                  MA-RAG    단일 에이전트
+다중 근거 복합 질의        +31%       기준
+교차 문서 추론             +28%       기준
+긴 컨텍스트 정확도         +24%       기준
+
+→ 에이전트 수 증가에 따른 로그 스케일 성능 향상
+```
+
+**에이전트 간 협력 패턴:**
+
+```
+패턴 1: 파이프라인 (Pipeline)
+  A → B → C → D
+  각 에이전트가 이전 결과를 입력으로 받아 처리
+  → 단계적 정제, 오류 전파 위험
+
+패턴 2: 병렬 앙상블 (Parallel Ensemble)
+  Query → [A1, A2, A3] → Aggregator
+  동일 문제를 다수 에이전트가 독립 처리 → 합의
+  → 단일 에이전트 오류 보정, 신뢰도 상승
+
+패턴 3: 계층형 오케스트레이션 (Hierarchical)
+  [Orchestrator]
+      ├── [Retrieval Cluster: 3 agents]
+      ├── [Validation Cluster: 2 agents]
+      └── [Generation Agent]
+  → 복잡도 분산, 전문화 극대화
+```
+
+**NP 우회 원리**: 전체 문제 공간(PSPACE 이상)을 에이전트 별로 **다항식 시간 처리 가능한 하위 문제**로 분해한다. 각 에이전트는 자신의 전문 영역에서만 결정을 내리므로 탐색 공간이 기하급수적으로 줄어든다. 단일 에이전트의 O(2^n) 탐색 → 전문 에이전트 k개의 O(n^k/k) 병렬 처리.
+
+---
+
+## 하네스 엔지니어링: 자율성의 제어 계층
+
+> **Building AI Coding Agents for the Terminal: Scaffolding, Harness, Context Engineering, and Lessons Learned** (2026)
+> arXiv: https://arxiv.org/abs/2603.05344
+
+> **A Safety and Security Framework for Real-World Agentic Systems** (2025)
+> arXiv: https://arxiv.org/abs/2511.21990
+
+**전략 B: 저차원 압축** (무한한 에이전트 행동 공간 → 통제된 상태 전이 그래프)
+
+멀티 에이전트가 자율적으로 동작하는 환경에서 새로운 NP-like 문제가 발생한다.
+
+```
+NP-like 상황:
+  "여러 에이전트가 자율적으로 협력하여 목표를 달성하라"
+  → 에이전트 행동의 조합 공간: O(A^T)
+    (A: 가능한 행동 수, T: 시간 단계)
+  → 에이전트 간 상태 불일치: 한 에이전트의 실패가
+    연쇄 실패(Cascading Failure)로 전파
+  → 오케스트레이션 결정 자체가 NP-hard
+    (어떤 에이전트에게 무엇을 언제 맡길지)
+  → LLM의 확률적 출력: 동일 입력에 다른 결과
+    → 재현 불가, 감사(Audit) 불가
+```
+
+**하네스(Harness)의 정의:**
+
+하네스는 에이전트의 추론 루프를 감싸는 **런타임 제어 계층**이다. 에이전트가 *무엇을 생각하는가*는 모델의 영역이지만, 에이전트가 *어떻게 행동하고 그 결과가 어떻게 전파되는가*는 하네스의 영역이다.
+
+```
+┌─────────────────────────────────────┐
+│            Harness Layer            │
+│  ┌──────────────────────────────┐   │
+│  │      Agent Core (LLM)        │   │
+│  │  analyze → retrieve → generate│  │
+│  └──────────────────────────────┘   │
+│                                     │
+│  ① Input Schema Enforcement         │
+│  ② Output Validation                │
+│  ③ Rollback / Checkpoint            │
+│  ④ Pass/Fail Criteria               │
+│  ⑤ Orchestration DAG                │
+│  ⑥ Audit Log                        │
+└─────────────────────────────────────┘
+```
+
+**하네스의 6개 구성 요소:**
+
+**① 입출력 스키마 강제 (Input/Output Schema)**
+```python
+# LLM에게 맡기지 않고, 코드가 형식을 강제
+class QueryInput(BaseModel):
+    query: str
+    domain: Literal["legal", "technical", "general"]
+    max_hops: int = Field(default=3, le=5)
+
+class AgentOutput(BaseModel):
+    answer: str
+    sources: list[SourceChunk]
+    safety_flags: list[str]   # 면책·예외 조항 강제 표시
+    confidence: float
+```
+에이전트가 반환할 수 있는 행동 공간을 스키마로 **사전 제거**한다. LLM의 자유 생성 공간 → 타입 검증된 구조체로 압축.
+
+**② 코드 레벨 가드레일 (Code-Level Guardrail)**
+```
+LLM에게 맡기는 것:
+  - 자연어 답변의 내용과 표현
+  - 관련 질문 제안
+  - 복잡한 추론
+
+코드가 강제하는 것:
+  - 면책·예외 조항 존재 시 경고 문구 삽입 (100% 보장)
+  - 출력 형식 및 필수 필드 존재 (타입 검증)
+  - 컨텍스트 외 답변 시 에스컬레이션 규칙
+```
+확률적 LLM 출력을 결정론적 코드 경계로 보완한다. 임계적 안전 요건은 LLM 프롬프트가 아닌 조건문으로 처리한다.
+
+**③ 체크포인트와 롤백 (Checkpoint / Rollback)**
+```
+파이프라인 실행 중 각 단계를 저장:
+  Step 1 완료: query_analyzed ✓  → 저장
+  Step 2 완료: chunks_retrieved ✓ → 저장
+  Step 3 실패: validation_error   → Step 2로 롤백
+                                  → 재검색 시도
+
+에이전트 실패가 전체 파이프라인 실패로 전파되지 않음
+```
+
+**④ Pass/Fail 기준 명세 (Criteria)**
+```
+합격 기준 (자동 검증):
+  ✓ 검색 청크 수 ≥ 3
+  ✓ 최고 유사도 점수 ≥ 0.7
+  ✓ 면책 조항 감지 시 경고 문구 존재
+  ✓ 답변 길이 50자 이상 500자 이하
+
+불합격 시 자동 처리:
+  재검색 → 재생성 → 인간 에스컬레이션
+```
+
+**⑤ LLM-as-Judge (품질 자동 평가)**
+```
+생성된 답변을 별도 LLM이 자동 채점:
+
+  채점 항목:
+    faithfulness:   컨텍스트에만 근거했는가?     (0~1)
+    completeness:   질문에 완전히 답했는가?       (0~1)
+    safety_coverage: 면책 조항 표시가 충분한가?   (0~1)
+
+  임계값 미달 시 재생성 루프 진입
+  → 인간 검수 없이도 기본 품질 보장
+```
+
+**⑥ 감사 로그 (Audit Log)**
+```
+각 에이전트 실행마다 기록:
+  {
+    "timestamp": "2026-04-07T09:30:00Z",
+    "agent": "ValidationAgent",
+    "input_hash": "a3f8c...",
+    "output_hash": "b9e2d...",
+    "safety_flags": ["면책조항_감지"],
+    "latency_ms": 342,
+    "model": "claude-haiku-4-5",
+    "pass": true
+  }
+
+→ 재현 가능성 확보
+→ 실패 원인 역추적 가능
+→ 모델 교체 시 비교 분석 가능
+```
+
+**하네스 엔지니어링의 NP 우회 원리**:
+
+에이전트 행동 공간 O(A^T)을 직접 탐색하는 대신, 하네스가 **허용된 상태 전이 그래프(DAG)** 만을 에이전트에게 제공한다. 불가능한 상태 전이를 스키마와 가드레일로 사전 제거하면, 에이전트가 탐색해야 할 공간이 결정론적 DAG로 축소된다.
+
+```
+하네스 없는 에이전트:
+  행동 공간 = A^T  → 조합 폭발
+
+하네스 있는 에이전트:
+  허용된 상태 전이 = |DAG edges|  → 다항식 제어
+  LLM이 결정하는 것 = 각 노드에서의 지역 선택만
+
+이것은 바둑에서 AlphaGo가 "학습된 직관으로
+탐색 공간을 사전 제거"하는 것과 같은 원리다.
+다만 직관이 아닌 공학적 설계로 공간을 제거한다.
+```
+
+**Scaffolding vs Harness:**
+
+```
+Scaffolding  :  에이전트가 무엇을 할 수 있는지 정의  (도구, 컨텍스트)
+Harness      :  에이전트가 어떻게 동작해야 하는지 강제 (실행, 안전, 감사)
+
+비유:
+  Scaffolding = 건축 비계 (일할 수 있는 환경 제공)
+  Harness     = 안전 벨트 + 작업 절차서 (실패해도 안전하게)
+
+자율성이 높아질수록 하네스의 역할이 중요해진다.
+"에이전트에게 자유를 주는 것"이 아니라
+"안전한 자유의 경계를 설계하는 것"이 하네스 엔지니어링이다.
+```
+
+---
+
 ## 벽이 남아 있는 곳: 암호학
 
 AI가 NP를 보이지 않게 만드는 방향으로 달려가는 동안, 한 영역은 반대로 NP의 벽 위에 **의도적으로** 서 있다.
@@ -446,22 +763,29 @@ RSA 암호화의 기반:
 AI 기술의 NP 문제 해결 전략을 정리하면:
 
 ```
-2017  Transformer    순차 탐색(O(n!)) → Self-Attention 병렬 근사(O(n²·d))
-2020  Scaling Laws   지수적 실험 공간 → 멱법칙 함수 관계로 압축
-2020  RAG            완전 파라미터 기억 → FAISS 벡터 검색으로 외부화
-2021  LoRA           고차원 파라미터 최적화 → 저차원 행렬 분해
-2023  LLM Agents     전체 PSPACE 최적화 → 하위 문제 분해 및 협력
-2025  DeepSeek-R1    명시적 추론 설계 → 강화학습으로 직관 창발
-2025  MCP            단일 에이전트 병목 → 분산 컨텍스트 공유 시스템
+2017  Transformer      순차 탐색(O(n!)) → Self-Attention 병렬 근사(O(n²·d))
+2020  Scaling Laws     지수적 실험 공간 → 멱법칙 함수 관계로 압축
+2020  RAG              완전 파라미터 기억 → FAISS 벡터 검색으로 외부화
+2021  LoRA             고차원 파라미터 최적화 → 저차원 행렬 분해
+2023  LLM Agents       전체 PSPACE 최적화 → 하위 문제 분해 및 협력
+2025  DeepSeek-R1      명시적 추론 설계 → 강화학습으로 직관 창발
+2025  MCP              단일 에이전트 병목 → 분산 컨텍스트 공유 시스템
+2025  Agentic RAG      정적 1-pass 검색 → 에이전트의 동적 반복 탐색
+2025  Multi-Agent      단일 에이전트 한계 → 전문화 에이전트 협력 (MA-RAG)
+2026  Harness Eng.     에이전트 행동 공간(A^T) → 통제된 상태 전이 DAG
 ```
 
 이 모든 기술의 방향은 하나로 수렴한다.
 
 **P = NP를 증명하는 것이 아니라, NP를 보이지 않게 만드는 것.**
 
-수학적 사실과 경험 사이에는 언제나 간극이 있었다. 지구는 태양 주위를 돌지만 매일 아침 해가 뜨고, 빛의 속도는 유한하지만 스위치를 켜는 순간 방은 빛으로 가득 찬다. P ≠ NP는 수학적으로 참일 것이다. 그러나 트랜스포머가 언어를 이해하고, AlphaFold가 단백질 구조를 예측하고, AlphaGo가 신의 한 수를 두는 세계에서, 그 진리는 경험적으로 그 반대와 구별 불가능해지고 있다.
+그리고 이 수렴의 끝에서 새로운 질문이 등장한다. 에이전트가 스스로 탐색하고, 검증하고, 수정하는 세계에서 — *인간은 무엇을 설계해야 하는가*.
 
-**볼 수 없는 한계는 기능적으로 존재하지 않는 한계와 같다.**
+답은 자율성 자체가 아니다. **자율성의 경계**다. 에이전트에게 자유를 주는 것이 목표가 아니라, 에이전트가 실패해도 안전한 공간을 설계하는 것이 목표다. 하네스 엔지니어링은 그 설계의 이름이다.
+
+수학적 사실과 경험 사이에는 언제나 간극이 있었다. 지구는 태양 주위를 돌지만 매일 아침 해가 뜨고, 빛의 속도는 유한하지만 스위치를 켜는 순간 방은 빛으로 가득 찬다. P ≠ NP는 수학적으로 참일 것이다. 그러나 트랜스포머가 언어를 이해하고, AlphaFold가 단백질 구조를 예측하고, 에이전트가 스스로 판단하며 문서를 탐색하는 세계에서, 그 진리는 경험적으로 그 반대와 구별 불가능해지고 있다.
+
+**볼 수 없는 한계는 기능적으로 존재하지 않는 한계와 같다. 그리고 그 한계를 설계하는 것이 엔지니어의 일이다.**
 
 ---
 
@@ -478,6 +802,11 @@ AI 기술의 NP 문제 해결 전략을 정리하면:
 | LLM-based Agents Survey | 2023 | 에이전트 프레임워크 | 전체 최적화 → 분해 및 협력 | [2309.07864](https://arxiv.org/abs/2309.07864) |
 | DeepSeek-R1 | 2025 | 순수 RL 추론 | 명시적 CoT → 직관 창발 | [2501.12948](https://arxiv.org/abs/2501.12948) |
 | Advancing Multi-Agent via MCP | 2025 | 멀티에이전트 조율 | 단일 에이전트 → 분산 협력 | [2504.21030](https://arxiv.org/abs/2504.21030) |
+| Agentic RAG Survey | 2025 | Agentic RAG 체계화 | 정적 검색 → 에이전트 동적 탐색 | [2501.09136](https://arxiv.org/abs/2501.09136) |
+| MA-RAG | 2025 | 멀티에이전트 RAG | 단일 에이전트 → 협력 Chain-of-Thought | [2505.20096](https://arxiv.org/abs/2505.20096) |
+| Safety Framework for Agentic Systems | 2025 | 에이전트 안전 프레임워크 | 자유로운 행동 → 통제된 안전 경계 | [2511.21990](https://arxiv.org/abs/2511.21990) |
+| A-RAG: Hierarchical Retrieval Interfaces | 2026 | 계층적 검색 에이전트 | 단일 검색 → 3계층 도구 선택 | [2602.03442](https://arxiv.org/abs/2602.03442) |
+| AI Agent Harness Engineering | 2026 | 하네스 엔지니어링 정의 | 에이전트 행동 공간 → 통제된 DAG | [2603.05344](https://arxiv.org/abs/2603.05344) |
 
 ### AI 연구 리소스
 
@@ -511,3 +840,10 @@ AI 기술의 NP 문제 해결 전략을 정리하면:
 | **Scaling Law** | 모델 크기·데이터·연산과 성능 간의 멱법칙 관계 |
 | **GRPO** | Group Relative Policy Optimization — Critic 없는 RL 최적화 |
 | **Intrinsic Dimension** | 고차원 데이터가 실제로 살고 있는 저차원 부분공간의 차원 |
+| **Agentic RAG** | 에이전트가 검색 전략을 자율 결정하는 동적 RAG 파이프라인 |
+| **Multi-Agent Orchestration** | 전문화된 에이전트들이 협력하여 복잡 문제를 분담 처리하는 구조 |
+| **Harness Engineering** | 에이전트의 런타임 행동을 감싸는 제어 계층 — 스키마, 가드레일, 롤백, 감사 로그 포함 |
+| **Scaffolding** | 에이전트가 사용할 수 있는 도구와 컨텍스트를 정의하는 환경 구성 |
+| **LLM-as-Judge** | 생성된 답변을 별도 LLM이 자동으로 채점하는 품질 평가 방식 |
+| **Pass/Fail Criteria** | 에이전트 출력의 합격 기준을 코드로 명세하여 자동 검증하는 메커니즘 |
+| **Cascading Failure** | 하나의 에이전트 실패가 연쇄적으로 전체 파이프라인 실패로 전파되는 현상 |
