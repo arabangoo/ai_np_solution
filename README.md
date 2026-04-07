@@ -600,20 +600,16 @@ NP-like 상황:
 하네스는 에이전트의 추론 루프를 감싸는 **런타임 제어 계층**이다. 에이전트가 *무엇을 생각하는가*는 모델의 영역이지만, 에이전트가 *어떻게 행동하고 그 결과가 어떻게 전파되는가*는 하네스의 영역이다.
 
 ```
-┌─────────────────────────────────────┐
-│            Harness Layer            │
-│  ┌──────────────────────────────┐   │
-│  │      Agent Core (LLM)        │   │
-│  │  analyze → retrieve → generate│  │
-│  └──────────────────────────────┘   │
-│                                     │
-│  ① Input Schema Enforcement         │
-│  ② Output Validation                │
-│  ③ Rollback / Checkpoint            │
-│  ④ Pass/Fail Criteria               │
-│  ⑤ Orchestration DAG                │
-│  ⑥ Audit Log                        │
-└─────────────────────────────────────┘
+[Harness Layer]
+  ① Input Schema Enforcement
+  ② Output Validation
+  ③ Rollback / Checkpoint
+  ④ Pass/Fail Criteria
+  ⑤ Orchestration DAG
+  ⑥ Audit Log
+      ↓ 감싸고 있는 것 ↓
+  [Agent Core (LLM)]
+    analyze → retrieve → generate
 ```
 
 **하네스의 6개 구성 요소:**
